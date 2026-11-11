@@ -50,6 +50,7 @@ export async function runFleet(opts: {
   runId: string;
   disk: any;
   creators?: string[]; // optional hand-picked creators (skips discovery)
+  resume?: boolean; // finish an interrupted run: skip research, just write the report
   emit: (e: FleetEvent) => void;
 }) {
   const { brief, runId, disk, emit } = opts;
@@ -74,8 +75,27 @@ export async function runFleet(opts: {
       emit({ type: "tool", agent, tool: toolCall.toolName, ms, hint: hintOf(toolCall.input) });
     };
 
-  await disk.putObject(`${base}/BRIEF.md`, `# Brand brief\n\n${brief}\n`);
+  if (!opts.resume) await disk.putObject(`${base}/BRIEF.md`, `# Brand brief\n\n${brief}\n`);
 
+  // Resuming an interrupted run: reuse the creators already researched, only write the report.
+  const existingIds = async (): Promise<string[]> => {
+    const list = JSON.parse(new TextDecoder().decode(await disk.getObject(`${base}/candidates.json`))) as (Candidate & { id: string })[];
+    emit({ type: "candidates", list });
+    const ok: string[] = [];
+    for (const c of list) {
+      try {
+        await disk.getObject(`${base}/creators/${c.id}/fit.md`);
+        ok.push(c.id);
+        emit({ type: "worker", id: c.id, status: "done" });
+      } catch {
+        emit({ type: "worker", id: c.id, status: "failed", error: "no research saved" });
+      }
+    }
+    if (!ok.length) throw new Error("Nothing was researched in this run yet. Start a new run instead.");
+    return ok;
+  };
+
+  const discoverAndResearch = async (): Promise<string[]> => {
   // 1. planner
   emit({ type: "stage", stage: "planning" });
   let candidates: Candidate[];
@@ -148,6 +168,9 @@ export async function runFleet(opts: {
   const settled = await Promise.allSettled(list.map(research));
   const ids = settled.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
   if (!ids.length) throw new Error("Every research worker failed. Check your API keys and credits, then try again.");
+  return ids;
+  };
+  const ids = opts.resume ? await existingIds() : await discoverAndResearch();
 
   // 3. synthesizer
   emit({ type: "stage", stage: "writing" });

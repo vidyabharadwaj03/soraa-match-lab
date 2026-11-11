@@ -57,6 +57,16 @@ function startRun(brief: string, creators?: string[]) {
   return id;
 }
 
+// Finish an interrupted run (e.g. the server restarted mid-run): reuse the saved research, write the report.
+async function resumeRun(id: string) {
+  const brief = (await text(`runs/${id}/BRIEF.md`)).replace(/^# Brand brief\s*/, "").trim();
+  const run: Run = { id, brief, stage: "starting", workers: [], activity: [], startedAt: Date.now() };
+  runs.set(id, run);
+  runFleet({ brief, runId: id, disk, resume: true, emit: (e) => reduce(run, e) }).catch((err) =>
+    reduce(run, { type: "error", message: String(err?.message ?? err).slice(0, 300) }),
+  );
+}
+
 // ---- reading from the disk ----
 const text = async (key: string) => dec.decode(await disk.getObject(key));
 async function listRuns() {
@@ -71,7 +81,9 @@ async function listRuns() {
       if (seen.has(id)) continue;
       let brief = id;
       try { brief = (await text(`runs/${id}/BRIEF.md`)).replace(/^# Brand brief\s*/, "").trim(); } catch {}
-      out.push({ id, brief, stage: "done" });
+      let finished = true;
+      try { await disk.getObject(`runs/${id}/REPORT.md`); } catch { finished = false; }
+      out.push({ id, brief, stage: finished ? "done" : "interrupted" });
     }
   } catch {}
   return out;
@@ -80,7 +92,7 @@ async function getRun(id: string) {
   const live = runs.get(id);
   let report: string | null = null;
   try { report = await text(`runs/${id}/REPORT.md`); } catch {}
-  if (live) return { ...live, report };
+  if (live) return { ...live, report, resumable: live.stage === "error" && !report && live.workers.length > 0 };
   // finished run from a previous session: rebuild from the disk
   let brief = id, workers: Worker[] = [];
   try { brief = (await text(`runs/${id}/BRIEF.md`)).replace(/^# Brand brief\s*/, "").trim(); } catch { return null; }
@@ -92,7 +104,11 @@ async function getRun(id: string) {
       return { id: x.id, name: x.name, where: x.where, status: "done" as const, score };
     }));
   } catch {}
-  return { id, brief, stage: report ? "done" : "error", workers, activity: [], report, error: report ? undefined : "This run didn't finish." };
+  return {
+    id, brief, stage: report ? "done" : "error", workers, activity: [], report,
+    resumable: !report && workers.length > 0,
+    error: report ? undefined : "This run was interrupted before the report was written (for example, the server restarted).",
+  };
 }
 async function listFiles(id: string) {
   const l = await disk.listObjects(`runs/${id}/`, { recursive: true });
@@ -120,6 +136,13 @@ createServer(async (req, res) => {
       if (active() >= MAX_ACTIVE) return json(res, 429, { error: `${MAX_ACTIVE} runs are already in progress. Wait for one to finish.` });
       const creators = Array.isArray(body.creators) ? body.creators.map(String).map((s: string) => s.trim()).filter(Boolean).slice(0, 6) : undefined;
       return json(res, 200, { id: startRun(brief, creators) });
+    }
+    const rs = p.match(/^\/api\/runs\/([a-z0-9-]+)\/resume$/);
+    if (req.method === "POST" && rs) {
+      if (active() >= MAX_ACTIVE) return json(res, 429, { error: `${MAX_ACTIVE} runs are already in progress. Wait for one to finish.` });
+      if (runs.has(rs[1]) && !["done", "error"].includes(runs.get(rs[1])!.stage)) return json(res, 409, { error: "This run is still going." });
+      await resumeRun(rs[1]);
+      return json(res, 200, { id: rs[1] });
     }
     const m = p.match(/^\/api\/runs\/([^/]+)(\/files)?$/);
     if (req.method === "GET" && m) {
