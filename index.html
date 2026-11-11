@@ -61,6 +61,25 @@ details summary{cursor:pointer;font-weight:600}
 .past a:hover{color:var(--accent)}
 .past span{color:var(--mute);font-size:12px}
 .hide{display:none}
+/* cute report */
+#reportCard{background:transparent;border:0;padding:0}
+.report .intro{background:var(--soft);border:1px solid var(--accent);border-radius:16px;padding:6px 20px 12px;margin-bottom:16px}
+.report .intro h1{font-size:24px;margin:14px 0 6px}
+.report .intro p{margin:6px 0}
+.report .intro p:first-of-type::before{content:"🍵 ";}
+.report .pick{position:relative;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:6px 20px 14px 20px;margin-bottom:14px}
+.report .pick.ranked{padding-left:64px;border-left:5px solid var(--accent)}
+.report .pick h2{font-size:20px;margin:14px 0 4px}
+.report .pick h3{font-size:14px;margin:16px 0 4px;color:var(--accent);letter-spacing:.02em}
+.report .pick > p > em:only-child{color:var(--mute)}
+.report .medal{position:absolute;left:14px;top:12px;font-size:34px;line-height:1}
+.report ul{padding-left:20px;margin:4px 0}
+.report li{margin:3px 0}
+.report .watch li::marker{color:var(--warn)}
+.report ul.pills{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.report ul.pills li{margin:0}
+.report ul.pills a{display:inline-block;background:var(--soft);border-radius:999px;padding:3px 11px;font-size:12.5px;text-decoration:none;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
+.report .pick.muted{background:transparent;border-style:dashed}
 </style>
 </head>
 <body>
@@ -193,10 +212,58 @@ function render(r) {
   $("resumeWrap").classList.toggle("hide", !(r.stage === "error" && r.resumable));
   if (r.report) {
     $("report").innerHTML = DOMPurify.sanitize(marked.parse(r.report), { ADD_ATTR: ["target"] });
+    prettify($("report"));
     $("report").querySelectorAll("a").forEach((a) => { a.target = "_blank"; a.rel = "noopener noreferrer"; });
     $("reportCard").classList.remove("hide"); $("hood").classList.remove("hide");
     loadFiles();
   }
+}
+
+// Turn the plain markdown report into friendly cards: intro callout, one card per pick, emoji labels, link pills.
+const RANK = /^\s*#?\s*(\d)\s*[:.)\-–—]?\s/;
+const LABELS = [[/why/i, "💚"], [/fact|snapshot|numbers/i, "✨"], [/watch|risk|caveat|careful/i, "🚩"], [/source|link/i, "🔗"],
+  [/not shortlisted|passed|skip/i, "🙅"], [/before|next|reach out|checklist/i, "👉"]];
+const MEDALS = ["", "🥇", "🥈", "🥉"];
+const emojiFor = (t) => (LABELS.find(([re]) => re.test(t)) || [])[1] || "";
+
+function prettify(root) {
+  const nodes = [...root.childNodes];
+  const intro = document.createElement("div"); intro.className = "intro";
+  const frag = document.createDocumentFragment(); let cur = null;
+  for (const n of nodes) {
+    const tag = n.nodeType === 1 ? n.tagName : "";
+    if (tag === "HR") continue;
+    if (tag === "H2" || ((tag === "H3") && RANK.test(n.textContent))) {
+      cur = document.createElement("section"); cur.className = "pick";
+      const m = n.textContent.match(RANK);
+      if (m) {
+        cur.classList.add("ranked");
+        const med = document.createElement("span"); med.className = "medal"; med.textContent = MEDALS[+m[1]] || "⭐";
+        cur.appendChild(med);
+        const h = document.createElement("h2"); h.textContent = n.textContent.replace(RANK, "").replace(/^[:.)\-–—\s]+/, ""); n.replaceWith(h); cur.appendChild(h);
+      } else {
+        if (/not shortlisted|passed/i.test(n.textContent)) cur.classList.add("muted");
+        const e = emojiFor(n.textContent); if (e) n.textContent = e + " " + n.textContent;
+        cur.appendChild(n);
+      }
+      frag.appendChild(cur);
+    } else if (cur) cur.appendChild(n);
+    else intro.appendChild(n);
+  }
+  root.innerHTML = "";
+  if (intro.childNodes.length) root.appendChild(intro);
+  root.appendChild(frag);
+  root.querySelectorAll("h3").forEach((h) => {
+    const e = emojiFor(h.textContent); if (e && !h.textContent.startsWith(e)) h.textContent = e + " " + h.textContent;
+    if (/watch|risk|caveat/i.test(h.textContent) && h.nextElementSibling && h.nextElementSibling.tagName === "UL") h.nextElementSibling.classList.add("watch");
+  });
+  root.querySelectorAll("ul").forEach((ul) => {
+    const items = [...ul.children];
+    if (items.length && items.every((li) => li.querySelector("a") && li.textContent.length < 160)) {
+      ul.classList.add("pills");
+      items.forEach((li) => { const a = li.querySelector("a"); if (/^https?:/.test(a.textContent)) a.textContent = a.textContent.replace(/^https?:\/\/(www\.)?/, "").slice(0, 60); });
+    }
+  });
 }
 
 let loadedFor = null;

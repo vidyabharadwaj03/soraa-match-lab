@@ -178,9 +178,20 @@ export async function runFleet(opts: {
     [
       "You are Soraa's matching brain. Read every creator folder and produce the curated shortlist.",
       `Creator folders: ${ids.map((i) => `${ROOT}/creators/${i}`).join(", ")}. Read profile.md, partnerships.md, fit.md, sources.md for each.`,
-      `Write ${ROOT}/REPORT.md: a ranked top 3 (fewer if the evidence is thin), each with a human-readable "why this match" in 2-3 sentences, ` +
-        "key facts, risks, and source links. Curated, not a filtered list. If you disagree with a worker's score, say why. " +
-        "Do not add facts that are not in the creator files.",
+      `Write ${ROOT}/REPORT.md in a warm, friendly, skimmable voice (like a smart friend giving a recommendation, not a consulting memo). ` +
+        "Use EXACTLY this markdown structure:\n" +
+        "# <a short, catchy title for this brief>\n" +
+        "A 2-3 sentence 'bottom line' paragraph (no heading) saying who to reach out to first and the biggest caveat.\n" +
+        "Then a ranked top 3 (fewer if the evidence is thin). For each, in order:\n" +
+        "## #1 <Creator name> (@handle)\n" +
+        "One italic line: what makes them special for this brand.\n" +
+        "### Why we love it\n(2-3 sentences, plain language)\n" +
+        "### Quick facts\n(short bullets: followers, location, style, cadence, rate if known)\n" +
+        "### Watch-outs\n(short bullets: real risks and unknowns)\n" +
+        "### Sources\n(a bullet list of just the links)\n" +
+        "Then '## Not shortlisted' (one line each on why) and '## Before you reach out' (a short checklist). " +
+        "Curated, not a filtered list. If you disagree with a worker's score, say why. " +
+        "Never add facts that are not in the creator files; say 'unknown' when unknown.",
     ].join("\n"),
     createDiskTools(workspace),
   );
