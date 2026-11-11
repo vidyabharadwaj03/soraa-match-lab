@@ -10,6 +10,8 @@ Built at the Archil Agent Hackathon. A fleet of AI agents that finds and researc
 4. A **synthesizer** reads every folder and writes `REPORT.md`: a ranked top 3 with a human-readable "why this match", risks and source links.
 5. Every tool call is appended to `runs/<id>/audit.jsonl` on the disk.
 
+**Creator memory:** the brief-independent research on each creator (profile, partnerships, sources) is also saved under `memory/creators/` on the disk. Later runs reuse it for 7 days (`MEMORY_DAYS`) and only re-score the creator against the new brief, which is much faster and cheaper than researching from scratch.
+
 Each run lives in its own folder on one persistent Archil disk, so a human and the agents share the same workspace and past runs stay browsable.
 
 ## Run it

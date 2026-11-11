@@ -23,7 +23,7 @@ const disk: any = await getSharedDisk();
 console.log(`Archil disk: ${disk.id}   model: ${MODEL}`);
 
 // ---- run state ----
-type Worker = { id: string; name: string; where: string; status: "queued" | "running" | "done" | "failed"; score?: number; last?: string; error?: string };
+type Worker = { id: string; name: string; where: string; status: "queued" | "running" | "done" | "failed"; score?: number; last?: string; error?: string; cached?: boolean };
 type Run = {
   id: string; brief: string; stage: "starting" | "planning" | "researching" | "writing" | "done" | "error";
   workers: Worker[]; activity: { agent: string; tool: string; ms: number; hint: string }[]; error?: string; startedAt: number;
@@ -36,7 +36,7 @@ function reduce(run: Run, e: FleetEvent) {
   else if (e.type === "candidates") run.workers = e.list.map((c) => ({ id: c.id, name: c.name, where: c.where, status: "queued" }));
   else if (e.type === "worker") {
     const w = run.workers.find((x) => x.id === e.id);
-    if (w) Object.assign(w, { status: e.status, score: e.score ?? w.score, error: e.error });
+    if (w) Object.assign(w, { status: e.status, score: e.score ?? w.score, error: e.error, cached: e.cached ?? w.cached });
   } else if (e.type === "tool") {
     run.activity.push({ agent: e.agent, tool: e.tool, ms: e.ms, hint: e.hint });
     if (run.activity.length > 40) run.activity.shift();
@@ -110,6 +110,18 @@ async function getRun(id: string) {
     error: report ? undefined : "This run was interrupted before the report was written (for example, the server restarted).",
   };
 }
+// Creators the fleet has researched before (saved on the disk under memory/creators/).
+async function listMemory() {
+  const out: { name: string; where: string; updatedAt: string }[] = [];
+  try {
+    const l = await disk.listObjects("memory/creators/");
+    const prefixes: string[] = (l.commonPrefixes ?? []).map((p: any) => (typeof p === "string" ? p : p.prefix));
+    await Promise.all(prefixes.map(async (p) => {
+      try { out.push(JSON.parse(await text(`${p}meta.json`))); } catch {}
+    }));
+  } catch {}
+  return out.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
 async function listFiles(id: string) {
   const l = await disk.listObjects(`runs/${id}/`, { recursive: true });
   return l.objects.map((o: any) => o.key as string).filter((k: string) => !k.endsWith("/")).sort();
@@ -128,6 +140,7 @@ createServer(async (req, res) => {
       return void res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(await readFile(new URL("./index.html", import.meta.url)));
     }
     if (req.method === "GET" && p === "/api/runs") return json(res, 200, await listRuns());
+    if (req.method === "GET" && p === "/api/memory") return json(res, 200, await listMemory());
     if (req.method === "POST" && p === "/api/runs") {
       const body = JSON.parse((await readBody(req)) || "{}");
       const brief = String(body.brief ?? "").trim();

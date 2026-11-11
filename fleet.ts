@@ -13,10 +13,17 @@ const MAX_CREATORS = Number(process.env.MAX_CREATORS ?? 4);
 const MOUNT = "/mnt/archil/workspace"; // the disk root, as seen by the agents' sandbox
 
 export type Candidate = { name: string; where: string };
+// Creator memory: brief-independent research (profile, partnerships, sources) is saved on the Archil disk
+// under memory/creators/<key>/ so later runs reuse it instead of searching the web again.
+const MEMORY_DAYS = Number(process.env.MEMORY_DAYS ?? 7);
+const MEM_FILES = ["profile.md", "partnerships.md", "sources.md"];
+const memKey = (name: string) => slug(name.replace(/\(.*?\)/g, "").replace(/@\S+/g, "").trim() || name);
+const dec = (b: Uint8Array) => new TextDecoder().decode(b);
+
 export type FleetEvent =
   | { type: "stage"; stage: "planning" | "researching" | "writing" | "done" }
   | { type: "candidates"; list: (Candidate & { id: string })[] }
-  | { type: "worker"; id: string; status: "running" | "done" | "failed"; score?: number; error?: string }
+  | { type: "worker"; id: string; status: "running" | "done" | "failed"; score?: number; error?: string; cached?: boolean }
   | { type: "tool"; agent: string; tool: string; ms: number; hint: string }
   | { type: "error"; message: string };
 
@@ -133,19 +140,40 @@ export async function runFleet(opts: {
   // 2. workers, in parallel
   emit({ type: "stage", stage: "researching" });
   const research = async (c: Candidate & { id: string }) => {
-    emit({ type: "worker", id: c.id, status: "running" });
+    const mem = `memory/creators/${memKey(c.name)}`;
+    const dir = `${base}/creators/${c.id}`;
+    // Reuse saved research if we have fresh-enough notes on this creator.
+    let cached = false;
+    let updatedAt = new Date().toISOString();
+    try {
+      const meta = JSON.parse(dec(await disk.getObject(`${mem}/meta.json`)));
+      if (Date.now() - Date.parse(meta.updatedAt) < MEMORY_DAYS * 864e5) {
+        for (const f of MEM_FILES) await disk.putObject(`${dir}/${f}`, dec(await disk.getObject(`${mem}/${f}`)));
+        cached = true;
+        updatedAt = meta.updatedAt;
+      }
+    } catch {}
+    emit({ type: "worker", id: c.id, status: "running", cached });
     try {
       const worker = mk(
-        [
-          "You research ONE creator for a brand-partnership matcher. Be factual and cite sources; never invent numbers.",
-          "If something can't be verified, write 'unknown' rather than guessing.",
-          `Work only in ${ROOT}/creators/${c.id}. Use write_file for files (each bash command runs in a fresh microVM).`,
-          "Write exactly these files:",
-          "  profile.md  - platforms + handles, follower counts (approx, with source), niche, location, content style/aesthetic/tone, posting cadence, rates if public.",
-          "  partnerships.md - past brand deals / sponsored content you can find, and what kinds of brands they work with.",
-          "  fit.md - fit against the brief. The FIRST line must be exactly 'Score: NN/100'. Then 3-5 bullet reasons (audience/geo, budget, style, niche, risks), each tagged with a [n] source.",
-          "  sources.md - the numbered list of URLs you relied on.",
-        ].join("\n"),
+        (cached
+          ? [
+              "You are scoring ONE creator for a brand-partnership matcher. Be factual and cite sources; never invent numbers.",
+              `Work only in ${ROOT}/creators/${c.id}. profile.md, partnerships.md and sources.md ALREADY EXIST there from earlier research (saved ${updatedAt.slice(0, 10)}). Read them first.`,
+              "Do NOT redo the research. Use at most 2 web searches, only to check for something that changed or that the brief needs and the notes lack. If you add facts, append them to the right file with the new source.",
+              "Then write fit.md (use write_file): the FIRST line must be exactly 'Score: NN/100', then 3-5 bullet reasons for fit against THIS brief (audience/geo, budget, style, niche, risks), each tagged with a [n] source.",
+            ]
+          : [
+              "You research ONE creator for a brand-partnership matcher. Be factual and cite sources; never invent numbers.",
+              "If something can't be verified, write 'unknown' rather than guessing.",
+              `Work only in ${ROOT}/creators/${c.id}. Use write_file for files (each bash command runs in a fresh microVM).`,
+              "Write exactly these files:",
+              "  profile.md  - platforms + handles, follower counts (approx, with source), niche, location, content style/aesthetic/tone, posting cadence, rates if public.",
+              "  partnerships.md - past brand deals / sponsored content you can find, and what kinds of brands they work with.",
+              "  fit.md - fit against the brief. The FIRST line must be exactly 'Score: NN/100'. Then 3-5 bullet reasons (audience/geo, budget, style, niche, risks), each tagged with a [n] source.",
+              "  sources.md - the numbered list of URLs you relied on.",
+            ]
+        ).join("\n"),
         { ...createDiskTools(workspace), ...webTools },
       );
       await worker.generate({
@@ -158,7 +186,12 @@ export async function runFleet(opts: {
         const m = fit.match(/(\d{1,3})\s*\/\s*100/);
         if (m) score = Math.min(100, Number(m[1]));
       } catch {}
-      emit({ type: "worker", id: c.id, status: "done", score });
+      // Save the (brief-independent) research to creator memory for future runs.
+      try {
+        for (const f of MEM_FILES) await disk.putObject(`${mem}/${f}`, dec(await disk.getObject(`${dir}/${f}`)));
+        await disk.putObject(`${mem}/meta.json`, JSON.stringify({ name: c.name, where: c.where, updatedAt }, null, 2));
+      } catch {}
+      emit({ type: "worker", id: c.id, status: "done", score, cached });
       return c.id;
     } catch (e: any) {
       emit({ type: "worker", id: c.id, status: "failed", error: String(e?.message ?? e).slice(0, 200) });
