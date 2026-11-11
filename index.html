@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soraa Match Lab</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<style>
+:root{--bg:#faf8f3;--card:#fff;--ink:#1f2a1f;--mute:#6b746b;--line:#e6e2d6;--accent:#4b7f52;--accent-ink:#fff;--soft:#eaf1e6;--warn:#b4532a;--warn-bg:#fbeee7}
+@media (prefers-color-scheme:dark){:root{--bg:#141813;--card:#1c211b;--ink:#eef2ea;--mute:#98a398;--line:#2d352c;--accent:#7bb383;--accent-ink:#0f150f;--soft:#233023;--warn:#e59c78;--warn-bg:#33231b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif}
+.wrap{max-width:860px;margin:0 auto;padding:28px 16px 80px}
+h1{font-size:28px;margin:0 0 4px;letter-spacing:-.02em}
+.sub{color:var(--mute);margin:0 0 22px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+.how{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}
+.how div{background:var(--soft);border-radius:12px;padding:12px 14px;font-size:14px}
+.how b{display:block;margin-bottom:2px}
+@media(max-width:620px){.how{grid-template-columns:1fr}}
+label{font-weight:600;display:block;margin-bottom:6px}
+textarea,input[type=text]{width:100%;font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px}
+textarea{min-height:110px;resize:vertical}
+textarea:focus,input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 14px}
+.chip{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
+.chip:hover{border-color:var(--accent)}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+button.primary{background:var(--accent);color:var(--accent-ink);border:0;border-radius:10px;padding:12px 22px;font:inherit;font-weight:700;cursor:pointer}
+button.primary:disabled{opacity:.5;cursor:wait}
+button.link{background:none;border:0;color:var(--accent);cursor:pointer;font:inherit;padding:0;text-decoration:underline}
+.hint{color:var(--mute);font-size:13px}
+.err{background:var(--warn-bg);color:var(--warn);border-radius:10px;padding:10px 14px;margin-top:12px}
+.steps{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap}
+.step{flex:1;min-width:130px;border-radius:10px;padding:8px 12px;background:var(--bg);border:1px solid var(--line);font-size:14px;color:var(--mute)}
+.step.on{background:var(--soft);border-color:var(--accent);color:var(--ink);font-weight:600}
+.step.done{color:var(--ink)}
+.step.done::before{content:"✓ "}
+.step.on::before{content:"● ";color:var(--accent);animation:b 1s infinite}
+@keyframes b{50%{opacity:.2}}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.cr{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--bg)}
+.cr h4{margin:0 0 4px;font-size:15px}
+.cr .st{font-size:13px;color:var(--mute);word-break:break-word}
+.score{float:right;background:var(--accent);color:var(--accent-ink);border-radius:999px;padding:1px 10px;font-weight:700;font-size:13px}
+.cr.failed{border-color:var(--warn)}
+.feed{font:12.5px/1.6 ui-monospace,Menlo,monospace;color:var(--mute);max-height:150px;overflow:auto;margin-top:12px}
+.report h1,.report h2,.report h3{letter-spacing:-.01em}
+.report h2{margin-top:28px}
+.report a{color:var(--accent);word-break:break-all}
+.report hr{border:0;border-top:1px solid var(--line);margin:22px 0}
+details summary{cursor:pointer;font-weight:600}
+.files{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:12px;margin-top:12px}
+@media(max-width:620px){.files{grid-template-columns:1fr}}
+.files .list{max-height:320px;overflow:auto;font:12px ui-monospace,monospace}
+.files .list div{padding:3px 6px;border-radius:6px;cursor:pointer;word-break:break-all}
+.files .list div:hover,.files .list .sel{background:var(--soft)}
+.files pre{margin:0;max-height:320px;overflow:auto;white-space:pre-wrap;font:12.5px/1.5 ui-monospace,monospace;background:var(--bg);border-radius:10px;padding:10px}
+.past a{display:block;padding:6px 0;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--line);font-size:14px;cursor:pointer}
+.past a:hover{color:var(--accent)}
+.past span{color:var(--mute);font-size:12px}
+.hide{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Soraa Match Lab</h1>
+  <p class="sub">Describe your brand. A team of AI agents researches real creators on the live web and hands you a curated shortlist, with reasons and sources.</p>
+
+  <div class="how">
+    <div><b>1. Describe</b>Who you are, your budget, and the kind of creator you want.</div>
+    <div><b>2. Watch</b>One agent per creator researches in parallel, saving notes to a shared disk.</div>
+    <div><b>3. Read</b>Get a ranked top 3 with "why this match" and links to every source.</div>
+  </div>
+
+  <div class="card" id="form">
+    <label for="brief">Your brand and the partnership you want</label>
+    <textarea id="brief" placeholder="e.g. We're a new matcha café in San Francisco (SoMa). Budget about $500 per creator. We want Bay Area food and lifestyle micro-creators with a clean, aesthetic style and a young local audience."></textarea>
+    <div class="chips" id="chips"></div>
+    <div id="pickWrap" class="hide" style="margin-bottom:14px">
+      <label for="picks">Creators to research (comma-separated names or handles)</label>
+      <input type="text" id="picks" placeholder="Jane Doe, @someone, Another Creator">
+      <div class="hint">Leave this closed and the agents will find creators for you.</div>
+    </div>
+    <div class="row">
+      <button class="primary" id="go">Find my creators</button>
+      <button class="link" id="togglePick" type="button">I already have creators in mind</button>
+      <span class="hint">Takes about 2–4 minutes.</span>
+    </div>
+    <div class="err hide" id="err"></div>
+  </div>
+
+  <div class="card hide" id="run">
+    <div class="steps" id="steps"></div>
+    <div id="brief-echo" class="hint" style="margin-bottom:10px"></div>
+    <div class="grid" id="workers"></div>
+    <div class="feed" id="feed"></div>
+    <div class="err hide" id="runerr"></div>
+  </div>
+
+  <div class="card report hide" id="reportCard"><div id="report"></div></div>
+
+  <details class="card hide" id="hood">
+    <summary>Under the hood: files the agents wrote to the shared disk</summary>
+    <p class="hint">Every note, source list and tool call is stored on an Archil disk. You can read or download the same files outside this page.</p>
+    <div class="files"><div class="list" id="flist"></div><pre id="fview">Select a file</pre></div>
+  </details>
+
+  <div class="card past hide" id="pastCard"><b>Earlier runs</b><div id="past"></div></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const EXAMPLES = {
+  "Matcha café (SF)": "We're a new matcha café in San Francisco (SoMa). Budget about $500 per creator. We want Bay Area food and lifestyle micro-creators (roughly 3K–30K followers) whose audience is local Gen Z and young professionals, with a clean, aesthetic style.",
+  "Skincare brand": "We're a small clean-skincare brand for sensitive skin, launching a $28 serum. Budget around $300 per creator. Looking for honest, ingredient-focused skincare micro-creators in the US with an engaged audience of women 22–35.",
+  "Running shoes": "We make a lightweight trail-running shoe and want to partner with trail and ultrarunning micro-creators in the Pacific Northwest. Budget about $400 per creator plus free product. Authentic, outdoorsy, not influencer-y.",
+};
+for (const [k, v] of Object.entries(EXAMPLES)) {
+  const b = document.createElement("button"); b.className = "chip"; b.type = "button"; b.textContent = k;
+  b.onclick = () => { $("brief").value = v; }; $("chips").appendChild(b);
+}
+$("togglePick").onclick = () => { $("pickWrap").classList.toggle("hide"); };
+
+const STAGES = [["planning", "Finding creators"], ["researching", "Researching each one"], ["writing", "Writing your shortlist"]];
+let timer = null, currentId = null;
+
+function showErr(el, msg) { el.textContent = msg; el.classList.toggle("hide", !msg); }
+
+$("go").onclick = async () => {
+  showErr($("err"), "");
+  const creators = $("pickWrap").classList.contains("hide") ? [] : $("picks").value.split(",").map((s) => s.trim()).filter(Boolean);
+  $("go").disabled = true;
+  try {
+    const r = await fetch("/api/runs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ brief: $("brief").value, creators }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || "Something went wrong");
+    open(j.id);
+  } catch (e) { showErr($("err"), e.message); }
+  $("go").disabled = false;
+};
+
+function open(id) {
+  currentId = id; clearInterval(timer);
+  $("run").classList.remove("hide"); $("reportCard").classList.add("hide"); $("hood").classList.add("hide");
+  $("run").scrollIntoView({ behavior: "smooth", block: "start" });
+  poll(); timer = setInterval(poll, 1500);
+}
+
+async function poll() {
+  if (!currentId) return;
+  let r; try { r = await (await fetch("/api/runs/" + currentId)).json(); } catch { return; }
+  if (r.error && !r.stage) return;
+  render(r);
+  if (r.stage === "done" || r.stage === "error") { clearInterval(timer); loadPast(); }
+}
+
+function render(r) {
+  $("brief-echo").textContent = r.brief;
+  const order = ["starting", "planning", "researching", "writing", "done"];
+  const idx = order.indexOf(r.stage);
+  $("steps").innerHTML = "";
+  STAGES.forEach(([k, label]) => {
+    const i = order.indexOf(k); const d = document.createElement("div");
+    d.className = "step" + (r.stage === "done" || idx > i ? " done" : idx === i ? " on" : "");
+    d.textContent = label; $("steps").appendChild(d);
+  });
+  $("workers").innerHTML = "";
+  (r.workers || []).forEach((w) => {
+    const d = document.createElement("div"); d.className = "cr " + w.status;
+    const h = document.createElement("h4"); h.textContent = w.name;
+    if (w.score != null) { const s = document.createElement("span"); s.className = "score"; s.textContent = w.score; h.prepend(s); }
+    const st = document.createElement("div"); st.className = "st";
+    st.textContent = w.status === "done" ? "Research complete" : w.status === "failed" ? "Couldn't finish: " + (w.error || "error") : w.status === "running" ? (w.last || "Starting…") : "Waiting";
+    d.append(h, st); $("workers").appendChild(d);
+  });
+  $("feed").textContent = (r.activity || []).slice(-8).map((a) => `${a.agent.replace("worker:", "").slice(0, 18).padEnd(18)} ${a.tool} ${a.hint}`).join("\n");
+  $("feed").scrollTop = 1e9;
+  showErr($("runerr"), r.stage === "error" ? (r.error || "This run failed.") : "");
+  if (r.report) {
+    $("report").innerHTML = DOMPurify.sanitize(marked.parse(r.report), { ADD_ATTR: ["target"] });
+    $("report").querySelectorAll("a").forEach((a) => { a.target = "_blank"; a.rel = "noopener noreferrer"; });
+    $("reportCard").classList.remove("hide"); $("hood").classList.remove("hide");
+    loadFiles();
+  }
+}
+
+let loadedFor = null;
+async function loadFiles() {
+  if (loadedFor === currentId) return; loadedFor = currentId;
+  const keys = await (await fetch(`/api/runs/${currentId}/files`)).json();
+  $("flist").innerHTML = ""; $("fview").textContent = "Select a file";
+  keys.forEach((k) => {
+    const d = document.createElement("div"); d.textContent = k.replace(`runs/${currentId}/`, "");
+    d.onclick = async () => {
+      document.querySelectorAll("#flist .sel").forEach((x) => x.classList.remove("sel")); d.classList.add("sel");
+      $("fview").textContent = await (await fetch("/api/file?key=" + encodeURIComponent(k))).text();
+    };
+    $("flist").appendChild(d);
+  });
+}
+
+async function loadPast() {
+  let rs = []; try { rs = await (await fetch("/api/runs")).json(); } catch {}
+  $("past").innerHTML = "";
+  rs.forEach((r) => {
+    const a = document.createElement("a"); a.textContent = r.brief.slice(0, 110);
+    const s = document.createElement("span"); s.textContent = "  " + (r.stage === "done" ? "" : r.stage); a.appendChild(s);
+    a.onclick = () => { loadedFor = null; open(r.id); }; $("past").appendChild(a);
+  });
+  $("pastCard").classList.toggle("hide", rs.length === 0);
+}
+loadPast();
+</script>
+</body>
+</html>

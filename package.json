@@ -1,0 +1,26 @@
+{
+  "name": "soraa-match-lab",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "tsx --env-file=.env app.ts",
+    "typecheck": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "AI agent fleet that researches brand-creator matches on a shared Archil disk with Keenable web search",
+  "type": "module",
+  "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.102",
+    "@archildata/ai-sdk": "^0.0.24",
+    "@types/node": "^26.6.6",
+    "ai": "^7.0.169",
+    "disk": "^1.5.0",
+    "keenable": "^0.1.4",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "zod": "^4.6.7"
+  }
+}
